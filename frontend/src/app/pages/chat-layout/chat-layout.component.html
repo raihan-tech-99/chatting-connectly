@@ -1,0 +1,401 @@
+<!-- WEBRTC AUDIO & VIDEO CALL OVERLAY -->
+<app-call-overlay></app-call-overlay>
+
+<div class="chat-app-container" [class.mobile-chat-open]="mobileShowChat()">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="chat-sidebar">
+    <!-- User Profile Header -->
+    <header class="sidebar-header">
+      <div class="current-user-info" (click)="openProfileModal()" title="Edit Profile">
+        <div class="avatar-sm">
+          @if (authService.currentUser()?.avatarUrl) {
+            <img [src]="authService.currentUser()?.avatarUrl" alt="Avatar" />
+          } @else {
+            {{ authService.currentUser()?.displayName?.charAt(0) || 'U' }}
+          }
+          <span class="online-status-dot online"></span>
+        </div>
+        <div class="user-names">
+          <span class="user-display-name">{{ authService.currentUser()?.displayName }}</span>
+          <span class="user-status-text">{{ authService.currentUser()?.statusMessage || 'Hey there! I am using Connectly.' }}</span>
+        </div>
+      </div>
+
+      <div class="header-tools">
+        <!-- Theme Toggle -->
+        <button class="tool-btn" (click)="themeService.toggleTheme()" [title]="themeService.currentTheme() === 'dark' ? 'Switch to Light' : 'Switch to Dark'">
+          {{ themeService.currentTheme() === 'dark' ? '☀️' : '🌙' }}
+        </button>
+
+        <!-- Profile Settings -->
+        <button class="tool-btn" (click)="openProfileModal()" title="Profile Settings">
+          👤
+        </button>
+
+        <!-- Logout -->
+        <button class="tool-btn danger" (click)="authService.logout()" title="Logout">
+          🚪
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs: Chats vs Call History -->
+    <div class="sidebar-tabs">
+      <button class="tab-item" [class.active]="sidebarTab() === 'CHATS'" (click)="sidebarTab.set('CHATS')">
+        💬 Chats
+      </button>
+      <button class="tab-item" [class.active]="sidebarTab() === 'CALLS'" (click)="sidebarTab.set('CALLS')">
+        📞 Calls
+      </button>
+    </div>
+
+    <!-- User & Conversation Search Bar -->
+    <div class="search-box-wrapper">
+      <div class="search-input-box">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          placeholder="Search or start new chat"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event); onSearchChange()"
+        />
+        @if (searchQuery()) {
+          <button class="clear-btn" (click)="clearSearch()">✕</button>
+        }
+      </div>
+    </div>
+
+    <!-- Search Results View -->
+    @if (isSearching()) {
+      <div class="search-results-pane">
+        <div class="section-title">Users Found</div>
+        @if (searchResults().length === 0) {
+          <div class="empty-list-notice">No users match "{{ searchQuery() }}"</div>
+        }
+        @for (user of searchResults(); track user.id) {
+          <div class="user-search-item" (click)="startChatWithUser(user)">
+            <div class="avatar-sm">
+              {{ user.displayName.charAt(0) }}
+              @if (chatService.onlineUserIds().has(user.id)) {
+                <span class="online-status-dot online"></span>
+              }
+            </div>
+            <div class="user-meta">
+              <span class="name">{{ user.displayName }}</span>
+              <span class="handle">&#64;{{ user.username }}</span>
+            </div>
+            <button class="btn-start-chat">Message</button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Conversation List -->
+    @if (!isSearching() && sidebarTab() === 'CHATS') {
+      <div class="conversations-scroll-list">
+        @if (chatService.conversations().length === 0) {
+          <div class="empty-list-notice">
+            <p>No conversations yet.</p>
+            <p class="sub">Search for users above to start messaging!</p>
+          </div>
+        }
+        @for (conv of chatService.conversations(); track conv.id) {
+          <div
+            class="conversation-row"
+            [class.active]="chatService.activeConversation()?.id === conv.id"
+            (click)="selectConversation(conv)"
+          >
+            <div class="avatar-sm">
+              @if (conv.participant?.avatarUrl) {
+                <img [src]="conv.participant?.avatarUrl" alt="Avatar" />
+              } @else {
+                {{ conv.participant?.displayName?.charAt(0) || '?' }}
+              }
+              @if (conv.participant?.id && chatService.onlineUserIds().has(conv.participant!.id)) {
+                <span class="online-status-dot online"></span>
+              }
+            </div>
+
+            <div class="conversation-details">
+              <div class="row-top">
+                <span class="participant-name">{{ conv.participant?.displayName || 'Unknown' }}</span>
+                <span class="message-time">{{ formatTime(conv.lastMessageAt) }}</span>
+              </div>
+              <div class="row-bottom">
+                <span class="preview-text">
+                  @if (chatService.activeTypingUser() && chatService.activeConversation()?.id === conv.id) {
+                    <em class="typing-highlight">typing...</em>
+                  } @else {
+                    {{ conv.lastMessagePreview || 'Start a conversation' }}
+                  }
+                </span>
+                @if (conv.unreadCount > 0) {
+                  <span class="unread-pill">{{ conv.unreadCount }}</span>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Call History Tab -->
+    @if (!isSearching() && sidebarTab() === 'CALLS') {
+      <div class="calls-scroll-list">
+        @if (chatService.callHistory().length === 0) {
+          <div class="empty-list-notice">
+            <p>No recent calls.</p>
+            <p class="sub">Audio and video calls will appear here.</p>
+          </div>
+        }
+        @for (call of chatService.callHistory(); track call.id) {
+          <div class="call-history-row">
+            <div class="avatar-sm">
+              {{ ((call.outgoing ? call.receiverDisplayName : call.callerDisplayName) || '?').charAt(0) }}
+            </div>
+            <div class="call-details">
+              <div class="call-title">
+                {{ call.outgoing ? call.receiverDisplayName : call.callerDisplayName }}
+              </div>
+              <div class="call-meta">
+                <span class="call-direction" [class.missed]="call.status === 'MISSED' || call.status === 'REJECTED'">
+                  {{ call.outgoing ? '↗ Outgoing' : '↙ Incoming' }}
+                </span>
+                <span class="separator">•</span>
+                <span class="call-time">{{ formatTime(call.startedAt) }}</span>
+                @if (call.durationSeconds > 0) {
+                  <span class="separator">•</span>
+                  <span class="duration">{{ call.durationSeconds }}s</span>
+                }
+              </div>
+            </div>
+            <button class="call-redial-btn" (click)="callUserFromHistory(call)" title="Call Back">
+              {{ call.callType === 'VIDEO' ? '📹' : '📞' }}
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </aside>
+
+  <!-- ================= ACTIVE CHAT WINDOW ================= -->
+  <main class="chat-main">
+    @if (chatService.activeConversation()) {
+      <!-- Active Chat Header -->
+      <header class="chat-header">
+        <div class="chat-header-user">
+          <button class="back-btn mobile-only" (click)="backToSidebar()" title="Back">
+            ←
+          </button>
+          <div class="avatar-sm">
+            @if (chatService.activeConversation()?.participant?.avatarUrl) {
+              <img [src]="chatService.activeConversation()?.participant?.avatarUrl" alt="Avatar" />
+            } @else {
+              {{ chatService.activeConversation()?.participant?.displayName?.charAt(0) || '?' }}
+            }
+            @if (chatService.activeConversation()?.participant?.id && chatService.onlineUserIds().has(chatService.activeConversation()!.participant!.id)) {
+              <span class="online-status-dot online"></span>
+            }
+          </div>
+
+          <div class="header-name-box">
+            <h3>{{ chatService.activeConversation()?.participant?.displayName }}</h3>
+            <span class="status-indicator">
+              @if (chatService.activeTypingUser()) {
+                <span class="typing-text">typing...</span>
+              } @else if (chatService.activeConversation()?.participant?.id && chatService.onlineUserIds().has(chatService.activeConversation()!.participant!.id)) {
+                <span class="online-text">Online</span>
+              } @else {
+                <span class="offline-text">Offline</span>
+              }
+            </span>
+          </div>
+        </div>
+
+        <div class="chat-header-actions">
+          <!-- WebRTC Audio Call -->
+          <button class="action-btn" (click)="startAudioCall()" title="Start Voice Call">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.44-5.15-3.75-6.59-6.59l1.97-1.57c.28-.28.37-.67.25-1.02A11.36 11.36 0 018.57 4.3c0-.55-.45-1-1-1H4.07c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.49c0-.55-.45-1-1-.03-.43z"/>
+            </svg>
+          </button>
+
+          <!-- WebRTC Video Call -->
+          <button class="action-btn" (click)="startVideoCall()" title="Start Video Call">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Messages Scroll Area -->
+      <div class="chat-messages-container" #messagesScroll>
+        <div class="encryption-notice">
+          <span>🔒 Messages and calls are real-time, user-isolated, and private.</span>
+        </div>
+
+        @for (msg of chatService.messages(); track msg.id) {
+          <div
+            class="message-row"
+            [class.outgoing]="msg.senderId === authService.currentUser()?.id"
+            [class.incoming]="msg.senderId !== authService.currentUser()?.id"
+          >
+            <div class="message-bubble">
+              <!-- Image attachment -->
+              @if (msg.messageType === 'IMAGE' && msg.mediaUrl) {
+                <div class="bubble-image-wrapper">
+                  <img [src]="msg.mediaUrl" [alt]="msg.mediaName || 'Image'" loading="lazy" />
+                </div>
+              }
+
+              <!-- Text Content -->
+              @if (msg.content) {
+                <div class="bubble-text">{{ msg.content }}</div>
+              }
+
+              <!-- Timestamp & Delivery status checkmarks -->
+              <div class="bubble-meta">
+                <span class="meta-time">{{ formatTime(msg.createdAt) }}</span>
+                @if (msg.senderId === authService.currentUser()?.id) {
+                  <span class="check-icon" [class.read]="msg.status === 'READ'">
+                    @if (msg.status === 'SENT') {
+                      <!-- Single Checkmark -->
+                      <svg viewBox="0 0 16 15" width="16" height="15"><path fill="currentColor" d="M10.91 3.316l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879 2.032 7.345a.365.365 0 0 0-.516 0l-.372.372a.365.365 0 0 0 0 .516l3.033 3.033a.365.365 0 0 0 .516 0l6.23-7.44a.365.365 0 0 0-.063-.51z"/></svg>
+                    } @else {
+                      <!-- Double Checkmarks (Delivered or Read) -->
+                      <svg viewBox="0 0 16 15" width="16" height="15"><path fill="currentColor" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879l-1.5-1.5a.365.365 0 0 0-.516 0l-.372.372a.365.365 0 0 0 0 .516l2.122 2.122a.365.365 0 0 0 .516 0l6.23-7.44a.365.365 0 0 0-.063-.51zm-4.32 0l-.478-.372a.365.365 0 0 0-.51.063L4.346 9.879 1.812 7.345a.365.365 0 0 0-.516 0l-.372.372a.365.365 0 0 0 0 .516l3.033 3.033a.365.365 0 0 0 .516 0l6.23-7.44a.365.365 0 0 0-.063-.51z"/></svg>
+                    }
+                  </span>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Live Typing Indicator in message flow -->
+        @if (chatService.activeTypingUser()) {
+          <div class="message-row incoming">
+            <div class="message-bubble typing-bubble">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Emoji Picker Popover -->
+      @if (showEmojiPicker()) {
+        <div class="emoji-picker-popover animate-pop">
+          <div class="emoji-grid">
+            @for (emoji of emojis; track emoji) {
+              <button class="emoji-btn" (click)="appendEmoji(emoji)">{{ emoji }}</button>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Hidden file input for uploading images & files -->
+      <input type="file" #fileInput (change)="onFileSelected($event)" accept="image/*,application/pdf" style="display: none;" />
+
+      <!-- Message Input Bar -->
+      <footer class="chat-input-bar">
+        <!-- Emoji Toggle -->
+        <button class="input-tool-btn" [class.active]="showEmojiPicker()" (click)="toggleEmojiPicker()" title="Insert Emoji">
+          😊
+        </button>
+
+        <!-- Attachment Button -->
+        <button class="input-tool-btn" (click)="triggerFileUpload()" [disabled]="isUploading()" title="Attach File/Image">
+          @if (isUploading()) {
+            <span class="spinner-small"></span>
+          } @else {
+            📎
+          }
+        </button>
+
+        <!-- Text Input -->
+        <div class="text-input-wrap">
+          <input
+            type="text"
+            placeholder="Type a message..."
+            [(ngModel)]="messageInput"
+            (keydown)="onInputKeyDown($event)"
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- Send Button -->
+        <button class="send-btn" (click)="sendMessage()" [disabled]="!messageInput.trim()" title="Send Message">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </footer>
+
+    } @else {
+      <!-- Empty State: No active chat selected -->
+      <div class="empty-chat-state">
+        <div class="empty-graphic">
+          <div class="logo-circle">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12c0 1.82.49 3.53 1.34 5.01L2 22l5.12-1.31C8.54 21.49 10.22 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/>
+            </svg>
+          </div>
+        </div>
+        <h2>Connectly Web</h2>
+        <p class="tagline">Send and receive messages, make audio and video calls in real time.</p>
+        <div class="security-badge">
+          <span>🔒 End-to-end encrypted feel with real-time WebSocket and WebRTC</span>
+        </div>
+      </div>
+    }
+  </main>
+</div>
+
+<!-- ================= PROFILE MODAL ================= -->
+@if (showProfileModal()) {
+  <div class="modal-backdrop">
+    <div class="profile-modal-card animate-pop">
+      <div class="modal-header">
+        <h3>User Profile</h3>
+        <button class="btn-close" (click)="showProfileModal.set(false)">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="profile-avatar-preview">
+          <div class="avatar-large">
+            {{ profileDisplayName.charAt(0) || 'U' }}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" [(ngModel)]="profileDisplayName" placeholder="Your full name" />
+        </div>
+
+        <div class="form-group">
+          <label>About / Status Message</label>
+          <input type="text" [(ngModel)]="profileStatusMessage" placeholder="Hey there! I am using Connectly." />
+        </div>
+
+        <div class="form-group">
+          <label>Avatar Image URL</label>
+          <input type="url" [(ngModel)]="profileAvatarUrl" placeholder="https://example.com/avatar.jpg" />
+        </div>
+
+        <div class="profile-readonly-info">
+          <div><label>Username:</label> <span>&#64;{{ authService.currentUser()?.username }}</span></div>
+          <div><label>Email:</label> <span>{{ authService.currentUser()?.email }}</span></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="showProfileModal.set(false)">Cancel</button>
+        <button class="btn-save" (click)="saveProfile()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+}

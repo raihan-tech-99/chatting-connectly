@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:connectly_test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ''
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+connectly:
+  jwt:
+    secret: connectly-ultra-secure-256-bit-secret-key-for-jwt-token-generation-2024!
+    expiration-ms: 3600000
+  storage:
+    upload-dir: ./target/test-uploads
+  cors:
+    allowed-origins: http://localhost:4200

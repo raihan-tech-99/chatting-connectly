@@ -1,0 +1,4 @@
+com\connectly\ConversationAccessTest.class
+com\connectly\WebRtcSignalingTest.class
+com\connectly\AuthServiceTest.class
+com\connectly\ConnectlyApplicationTests.class

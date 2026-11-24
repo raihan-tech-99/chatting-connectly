@@ -1,0 +1,197 @@
+@if (webrtcService.callState() !== 'IDLE') {
+  <div class="call-overlay-backdrop">
+    
+    <!-- INCOMING CALL MODAL -->
+    @if (webrtcService.callState() === 'INCOMING') {
+      <div class="incoming-call-card animate-pop">
+        <div class="pulse-ring-container">
+          <div class="pulse-ring"></div>
+          <div class="pulse-ring delay-1"></div>
+          <div class="avatar-large">
+            {{ webrtcService.remoteUser()?.displayName?.charAt(0) || '?' }}
+          </div>
+        </div>
+
+        <div class="call-info">
+          <h2>{{ webrtcService.remoteUser()?.displayName }}</h2>
+          <p class="call-subtitle">
+            <span class="type-badge">{{ webrtcService.callType() === 'VIDEO' ? '📹 Video Call' : '📞 Audio Call' }}</span>
+            Incoming call...
+          </p>
+        </div>
+
+        <div class="incoming-actions">
+          <button class="btn-decline" (click)="webrtcService.rejectCall()" title="Decline">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+              <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.58.9-1.07.51-2.02 1.2-2.82 2.04-.26.27-.64.35-.98.22L.47 14.8c-.3-.11-.47-.41-.47-.73 0-.17.06-.34.18-.46C3.25 10.6 7.39 8.7 12 8.7s8.75 1.9 11.82 4.91c.12.12.18.29.18.46 0 .32-.17.62-.47.73l-2.55 1.18c-.34.13-.72.05-.98-.22-.8-.84-1.75-1.53-2.82-2.04-.35-.16-.58-.51-.58-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+            </svg>
+            <span>Decline</span>
+          </button>
+
+          <button class="btn-accept" (click)="webrtcService.acceptCall()" title="Accept">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+              <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.44-5.15-3.75-6.59-6.59l1.97-1.57c.28-.28.37-.67.25-1.02A11.36 11.36 0 018.57 4.3c0-.55-.45-1-1-1H4.07c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.49c0-.55-.45-1-1-.03-.43z"/>
+            </svg>
+            <span>Accept</span>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- OUTGOING CALLING SCREEN -->
+    @if (webrtcService.callState() === 'CALLING') {
+      <div class="calling-card animate-pop">
+        <div class="pulse-ring-container">
+          <div class="pulse-ring"></div>
+          <div class="avatar-large">
+            {{ webrtcService.remoteUser()?.displayName?.charAt(0) || '?' }}
+          </div>
+        </div>
+
+        <div class="call-info">
+          <h2>{{ webrtcService.remoteUser()?.displayName }}</h2>
+          <p class="status-text">{{ webrtcService.connectionStatus() }}</p>
+          <span class="type-badge">{{ webrtcService.callType() === 'VIDEO' ? '📹 Video Call' : '📞 Audio Call' }}</span>
+        </div>
+
+        <!-- Optional preview for caller -->
+        @if (webrtcService.callType() === 'VIDEO') {
+          <div class="calling-preview">
+            <video #localVideo autoplay playsinline muted></video>
+          </div>
+        }
+
+        <div class="outgoing-actions">
+          <button class="btn-decline" (click)="webrtcService.endCall()">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+              <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.58.9-1.07.51-2.02 1.2-2.82 2.04-.26.27-.64.35-.98.22L.47 14.8c-.3-.11-.47-.41-.47-.73 0-.17.06-.34.18-.46C3.25 10.6 7.39 8.7 12 8.7s8.75 1.9 11.82 4.91c.12.12.18.29.18.46 0 .32-.17.62-.47.73l-2.55 1.18c-.34.13-.72.05-.98-.22-.8-.84-1.75-1.53-2.82-2.04-.35-.16-.58-.51-.58-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+            </svg>
+            <span>Cancel</span>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- CONNECTED ACTIVE CALL SCREEN -->
+    @if (webrtcService.callState() === 'CONNECTED') {
+      <div class="connected-call-layout">
+        
+        <!-- TOP STATUS HEADER -->
+        <div class="call-header-bar">
+          <div class="participant-meta">
+            <span class="call-name">{{ webrtcService.remoteUser()?.displayName }}</span>
+            <span class="call-timer">{{ formattedDuration() }}</span>
+          </div>
+          <div class="header-badges">
+            <span class="connection-pill" [class.connected]="webrtcService.connectionStatus().includes('Connected')">
+              {{ webrtcService.connectionStatus() }}
+            </span>
+            <button class="btn-settings" (click)="showTurnSettings.set(true)" title="TURN / Network Settings">
+              ⚙️
+            </button>
+          </div>
+        </div>
+
+        <!-- NETWORK LIMITATION / STUN WARNING BANNER -->
+        @if (webrtcService.networkNotice()) {
+          <div class="network-alert-banner">
+            <span class="alert-icon">⚠️</span>
+            <span>{{ webrtcService.networkNotice() }}</span>
+            <button class="btn-link" (click)="showTurnSettings.set(true)">Configure TURN Server</button>
+          </div>
+        }
+
+        <!-- MEDIA DISPLAY AREA -->
+        <div class="video-stage">
+          <!-- Remote video or audio avatar -->
+          <div class="remote-video-wrapper">
+            <video #remoteVideo autoplay playsinline [class.hidden]="webrtcService.callType() === 'AUDIO'"></video>
+            
+            @if (webrtcService.callType() === 'AUDIO') {
+              <div class="audio-avatar-card">
+                <div class="avatar-huge">
+                  {{ webrtcService.remoteUser()?.displayName?.charAt(0) || '?' }}
+                </div>
+                <h3>{{ webrtcService.remoteUser()?.displayName }}</h3>
+                <div class="audio-waves">
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Local video PiP -->
+          @if (webrtcService.callType() === 'VIDEO') {
+            <div class="pip-container">
+              <video #localVideo autoplay playsinline muted></video>
+              <span class="pip-label">You</span>
+            </div>
+          }
+        </div>
+
+        <!-- FLOATING CONTROL BAR -->
+        <div class="call-controls-bar">
+          <!-- Mic Toggle -->
+          <button class="control-btn" [class.active-danger]="webrtcService.isMuted()" (click)="webrtcService.toggleMute()" title="Toggle Mute">
+            @if (webrtcService.isMuted()) {
+              <svg viewBox="0 0 24 24" fill="currentColor" class="icon"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>
+            } @else {
+              <svg viewBox="0 0 24 24" fill="currentColor" class="icon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            }
+            <span class="btn-subtext">{{ webrtcService.isMuted() ? 'Unmute' : 'Mute' }}</span>
+          </button>
+
+          <!-- Camera Toggle (Only for Video calls) -->
+          @if (webrtcService.callType() === 'VIDEO') {
+            <button class="control-btn" [class.active-danger]="webrtcService.isVideoOff()" (click)="webrtcService.toggleVideo()" title="Toggle Camera">
+              @if (webrtcService.isVideoOff()) {
+                <svg viewBox="0 0 24 24" fill="currentColor" class="icon"><path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.55-.18L19.73 21 21 19.73 3.27 2zM5 16V8h1.73l8 8H5z"/></svg>
+              } @else {
+                <svg viewBox="0 0 24 24" fill="currentColor" class="icon"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+              }
+              <span class="btn-subtext">{{ webrtcService.isVideoOff() ? 'Camera On' : 'Camera Off' }}</span>
+            </button>
+          }
+
+          <!-- End Call Button -->
+          <button class="control-btn btn-hangup" (click)="webrtcService.endCall()" title="End Call">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="icon"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.58.9-1.07.51-2.02 1.2-2.82 2.04-.26.27-.64.35-.98.22L.47 14.8c-.3-.11-.47-.41-.47-.73 0-.17.06-.34.18-.46C3.25 10.6 7.39 8.7 12 8.7s8.75 1.9 11.82 4.91c.12.12.18.29.18.46 0 .32-.17.62-.47.73l-2.55 1.18c-.34.13-.72.05-.98-.22-.8-.84-1.75-1.53-2.82-2.04-.35-.16-.58-.51-.58-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+            <span class="btn-subtext">End</span>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- TURN SERVER CONFIGURATION MODAL -->
+    @if (showTurnSettings()) {
+      <div class="turn-settings-modal animate-pop">
+        <div class="modal-header">
+          <h3>WebRTC TURN / Relay Settings</h3>
+          <button class="btn-close" (click)="showTurnSettings.set(false)">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="settings-hint">
+            By default, Connectly uses Google's public STUN servers for peer-to-peer WebRTC traversal. In strict NAT/corporate firewall environments, enter a TURN server (e.g., Metered.ca, Twilio, or Coturn).
+          </p>
+          <div class="form-group">
+            <label>TURN URL</label>
+            <input type="text" [(ngModel)]="turnUrl" placeholder="turn:turn.example.com:3478?transport=udp" />
+          </div>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" [(ngModel)]="turnUsername" placeholder="username" />
+          </div>
+          <div class="form-group">
+            <label>Credential / Password</label>
+            <input type="password" [(ngModel)]="turnCredential" placeholder="password" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" (click)="showTurnSettings.set(false)">Cancel</button>
+          <button class="btn-save" (click)="saveTurnSettings()">Save &amp; Apply</button>
+        </div>
+      </div>
+    }
+
+  </div>
+}
