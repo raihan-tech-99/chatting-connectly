@@ -9,19 +9,21 @@ RUN mvn package -DskipTests -q
 FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S connectly && adduser -S connectly -G connectly
+# Create non-root user and uploads dir (as root, before USER switch)
+RUN addgroup -S connectly \
+ && adduser -S connectly -G connectly \
+ && mkdir -p /app/uploads \
+ && chown -R connectly:connectly /app
+
+# Switch to non-root user
 USER connectly
 
-# Copy JAR
-COPY --from=build /build/target/connectly-backend-*.jar app.jar
-
-# Upload volume mount point
-RUN mkdir -p /app/uploads
+# Copy JAR (chown to connectly so user can read it)
+COPY --chown=connectly:connectly --from=build /build/target/connectly-backend-*.jar app.jar
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD wget -qO- http://localhost:8080/api/health || exit 1
+  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
 
 ENTRYPOINT ["java", \
   "-XX:+UseContainerSupport", \
